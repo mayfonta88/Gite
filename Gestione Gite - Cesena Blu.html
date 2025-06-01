@@ -1,0 +1,1696 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <title>Cesena Blu - Gestione Immersioni</title>
+  <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore-compat.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; background: #f5f7fa; }
+    input, button, select { padding: 8px; margin: 5px 0; }
+    .section { border: 1px solid #ccc; border-radius: 5px; background: #fff; margin-top: 10px; padding: 10px; }
+    .hidden { display: none; }
+    .nav-btn { margin: 5px; padding: 10px 15px; background: #007BFF; color: white; border: none; border-radius: 4px; cursor: pointer; }
+    .nav-btn:hover { background-color: #0056b3; }
+    #logoutBtn { float: right; background: red; }
+  </style>
+</head>
+<body>
+  <div id="authSection">
+    <h2>Login</h2>
+    <input type="email" id="email" placeholder="Email">
+    <input type="password" id="password" placeholder="Password">
+    <button onclick="login()">Login</button>
+    <button onclick="register()">Registrati</button>
+    <button onclick="resetPassword()">Recupera Password</button>
+    <div id="authMessage"></div>
+  </div>
+
+  <div id="mainApp" class="hidden">
+    <button id="logoutBtn" onclick="logout()">Logout</button>
+    <h1>Gestione Gite - Cesena Blu</h1>
+    <button id="apriImpostazioni">⚙️ Impostazioni</button>
+    <div id="sezioneImpostazioni" style="display: none; border: 1px solid #ccc; padding: 10px; margin-top: 10px;">
+      <h3>Loghi intestazione PDF (max 2)</h3>
+
+      <div>
+        <label>Logo 1:</label>
+        <input type="file" id="logo1" accept="image/*">
+        <img id="previewLogo1" style="max-height: 50px; vertical-align: middle; margin-left: 10px;">
+      </div>
+
+      <div>
+        <label>Logo 2:</label>
+        <input type="file" id="logo2" accept="image/*">
+        <img id="previewLogo2" style="max-height: 50px; vertical-align: middle; margin-left: 10px;">
+      </div>
+
+
+      <button id="salvaLoghi">Salva Loghi</button>
+    </div>
+    <div id="bloccoAggiungiGita">
+      <input type="text" id="nomeGita" placeholder="Nome della gita">
+      <input type="text" id="dateGita" placeholder="Scegli giorni" readonly>
+      <button onclick="aggiungiGita()">Aggiungi Gita</button>
+    </div>
+    <div id="messaggio"></div>
+    <h2 id="titoloGita">Gite</h2>
+    <div id="listaGite"></div>
+    <button id="btnArchivio" class="nav-btn" style="background:#6c757d;display:none;margin-right:10px">📁 Archivio</button>
+    <div id="listaGiteArchivio" style="display:none;"></div>
+    <div id="sezioniGita" class="hidden">
+      <div id="sezioneModifica"></div>
+      <button class="nav-btn" onclick="toggleGitaSection('imbarcazioni')">Sezione Imbarcazioni</button>
+      <button class="nav-btn" onclick="toggleGitaSection('tuffi')">Sezione Calendario Tuffi</button>
+      <button class="nav-btn" onclick="toggleGitaSection('importa')">Sezione Iscritti</button>
+      <button class="nav-btn" onclick="toggleGitaSection('organizza')">Sezione Organizzazione Immersioni</button>
+      <button class="nav-btn" onclick="esportaRiepilogo()">Esporta Riepilogo Organizzazione</button>
+      <button class="nav-btn" onclick="esportaElencoPresenze()">Esporta Elenco Presenze</button>
+      
+      
+
+      <div id="sezioneImbarcazioni" class="section hidden">
+  <h3>Gestione Imbarcazioni</h3>
+  <div>
+    <input type="text" id="nomeImbarcazione" placeholder="Nome Imbarcazione">
+    <input type="number" id="capienzaImbarcazione" placeholder="Capienza Massima" min="1">
+    <select id="tipologiaImbarcazione">
+      <option value="Gommone">Gommone</option>
+      <option value="Barca">Barca</option>
+    </select>
+    <button onclick="aggiungiImbarcazione()">Aggiungi</button>
+  </div>
+  <div id="listaImbarcazioni"></div>
+</div>
+      <div id="sezioneTuffi" class="section hidden">
+        <h3>Calendario Tuffi</h3>
+        <div id="tuffiContainer"></div>
+        <button onclick="salvaTuffi()">Salva Orari Tuffi</button>
+      </div>
+      <div id="sezioneImporta" class="section hidden">
+        <h3>Importazione Iscritti (Excel)</h3>
+        <input type="file" id="fileIscritti" accept=".xlsx" onchange="preElaboraIscritti(event)">
+        <div id="riepilogoIscritti" style="margin-top:10px"></div>
+<h4>Elenco Partecipanti salvati</h4>
+<div id="listaPartecipantiSalvati"
+     style="max-height:250px;overflow:auto;border:1px solid #ccc;padding:6px"></div>
+
+        <button id="btnConfermaImport" class="nav-btn hidden" onclick="confermaImportIscritti()">Conferma Importazione</button>
+      </div>
+      
+      <div id="sezioneOrganizza" class="section hidden">
+        <h3>Organizzazione Immersione</h3>
+        <label for="menuTuffi">Scegli giorno e orario:</label>
+        <select id="menuTuffi"></select>
+        
+          <option value="">-- Seleziona --</option>
+        </select>
+        <div id="organizzazioneImmersioneContainer"></div>
+        
+
+  <script>
+    if (typeof firebase === 'undefined') {
+      alert('Errore nel caricamento di Firebase. Controlla la connessione.');
+    } else {
+      if (!firebase.apps.length) {
+        const firebaseConfig = {
+          apiKey: "AIzaSyDU0wDi_ToUJkCkoSBQCsaJsr26nHC6HYg",
+          authDomain: "gite-cesena-blu.firebaseapp.com",
+          projectId: "gite-cesena-blu",
+          storageBucket: "gite-cesena-blu.appspot.com",
+          messagingSenderId: "837199090946",
+          appId: "1:837199090946:web:09ff5e2c02e8a538149e1b"
+        };
+        firebase.initializeApp(firebaseConfig);
+      }
+      
+      document.querySelector('button.nav-btn[onclick="esportaRiepilogo()"]').style.backgroundColor = "#28a745";
+      document.querySelector('button.nav-btn[onclick="esportaRiepilogo()"]').style.color = "white";
+      document.querySelector('button.nav-btn[onclick="esportaElencoPresenze()"]').style.backgroundColor = "#28a745";
+      document.querySelector('button.nav-btn[onclick="esportaElencoPresenze()"]').style.color = "white";
+
+      const auth = firebase.auth();
+      const db = firebase.firestore();
+      let currentGitaId = null;
+
+      function showMsg(testo) {
+        const el = document.getElementById('messaggio');
+        el.textContent = testo;
+        setTimeout(() => el.textContent = '', 3000);
+      }
+      document.getElementById("apriImpostazioni").onclick = () => {
+        const sez = document.getElementById("sezioneImpostazioni");
+        sez.style.display = sez.style.display === "none" ? "block" : "none";
+        if (sez.style.display === "block") aggiornaPreviewLoghi();
+      };
+
+      
+      function aggiornaPreviewLoghi() {
+        for (let i = 1; i <= 2; i++) {
+          const base64 = localStorage.getItem(`logoPDF_${i}`);
+          const img = document.getElementById(`previewLogo${i}`);
+
+          if (!img) continue;
+
+          if (base64 && base64.startsWith("data:image")) {
+            img.setAttribute("src", base64);
+            img.style.display = "inline-block";
+            img.style.visibility = "visible";
+          } else {
+            img.removeAttribute("src");
+            img.style.display = "none";
+          }
+        }
+      }
+
+
+      document.getElementById("salvaLoghi").onclick = async () => {
+        for (let i = 1; i <= 2; i++) {
+          const fileInput = document.getElementById(`logo${i}`);
+          const file = fileInput.files[0];
+          if (file) {
+            await new Promise(resolve => {
+              const reader = new FileReader();
+              reader.onload = () => {
+                localStorage.setItem(`logoPDF_${i}`, reader.result);
+                resolve();
+              };
+              reader.readAsDataURL(file);
+            });
+          }
+        }
+        aggiornaPreviewLoghi();
+        alert("Loghi salvati correttamente.");
+      };
+
+
+      
+      function login() {
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        auth.signInWithEmailAndPassword(email, password)
+          .then(() => location.reload())
+          .catch(err => document.getElementById('authMessage').textContent = err.message);
+      }
+
+      function register() {
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        auth.createUserWithEmailAndPassword(email, password)
+          .then(() => location.reload())
+          .catch(err => document.getElementById('authMessage').textContent = err.message);
+      }
+
+      function resetPassword() {
+        const email = document.getElementById('email').value;
+        if (!email) return alert('Inserisci un email valida');
+        auth.sendPasswordResetEmail(email)
+          .then(() => alert('Email inviata'))
+          .catch(err => alert(err.message));
+      }
+
+      function logout() {
+        const conferma = confirm("Sei sicuro di voler uscire?");
+        if (!conferma) return;
+        
+        auth.signOut().then(() => location.reload());
+      }
+
+      function toggleGitaSection(sectionId) {
+        ['Imbarcazioni','Tuffi','Importa','Organizza'].forEach(id=>{
+          document.getElementById('sezione'+id).classList.add('hidden');
+        });
+        document.getElementById(
+          'sezione'+sectionId.charAt(0).toUpperCase()+sectionId.slice(1)
+        ).classList.remove('hidden');
+        console.log('[ORG] avviata – gita:', currentGitaId);
+        if (sectionId === 'importa')   caricaPartecipantiEsistenti();
+        if (sectionId === 'organizza') caricaOrganizzazioneImmersione();
+      }
+
+
+      function mostraGita(docId, nomeGita) {
+        currentGitaId = docId;
+        caricaPartecipantiEsistenti();
+        document.getElementById('sezioniGita').classList.remove('hidden');
+        document.getElementById('titoloGita').textContent = nomeGita;
+        document.getElementById('nomeGita').value = '';
+        document.getElementById('dateGita').value = '';
+        document.getElementById('listaGite').style.display = 'none';
+        document.getElementById('btnArchivio').style.display = 'none';
+        document.getElementById('listaGiteArchivio').style.display = 'none';
+        document.getElementById('apriImpostazioni').style.display = 'none';
+        document.getElementById('bloccoAggiungiGita').style.display = 'none';
+        document.querySelector('#mainApp > div > div:nth-child(3)').style.display = 'none';
+        document.querySelector('#mainApp > div').style.display = 'none';
+        caricaCalendarioTuffi(docId);
+        document.getElementById('sezioniGita').classList.remove('hidden');
+        document.getElementById('titoloGita').textContent = nomeGita;
+        document.getElementById('nomeGita').value = '';
+        document.getElementById('dateGita').value = '';
+        document.getElementById('listaGite').style.display = 'none';
+        document.querySelector('#mainApp > div').style.display = 'none';
+        document.getElementById('sezioneImbarcazioni').classList.add('hidden');
+        document.getElementById('sezioneTuffi').classList.add('hidden');
+        document.getElementById('sezioneImporta').classList.add('hidden');
+        document.getElementById('sezioneOrganizza').classList.add('hidden');
+
+        if (!document.getElementById('backToGite')) {
+          const backBtn = document.createElement('button');
+          backBtn.id = 'backToGite';
+          backBtn.textContent = 'Indietro';
+          backBtn.style.background = '#ccc';
+          backBtn.style.marginBottom = '10px';
+          backBtn.onclick = () => {
+            document.getElementById('sezioniGita').classList.add('hidden');
+            document.getElementById('titoloGita').textContent = 'Gite';
+            document.getElementById('listaGite').style.display = 'block';
+            document.getElementById('bloccoAggiungiGita').style.display = 'block';
+            document.querySelector('#mainApp > div').style.display = 'block';
+            document.getElementById('sezioneImpostazioni').style.display = 'none'; // ⬅️ CHIUDE la sezione impostazioni
+            // Forza la visualizzazione dei blocchi logo1 e logo2
+            document.querySelector('#logo1').parentElement.style.display = 'block';
+            document.querySelector('#logo2').parentElement.style.display = 'block';
+            aggiornaPreviewLoghi();
+            document.getElementById('btnArchivio').style.display = 'inline-block'; // ⬅️ RIMETTE il pulsante Archivio se serviva
+            document.getElementById('apriImpostazioni').style.display = 'inline-block';
+            backBtn.remove();
+          };
+          document.getElementById('mainApp').insertBefore(backBtn, document.getElementById('sezioniGita'));
+        }
+
+      }
+
+      function aggiungiGita() {
+        const nome = document.getElementById('nomeGita').value.trim();
+        const dateStr = document.getElementById('dateGita').value.trim();
+        if (!nome || !dateStr) {
+          showMsg("Inserisci nome e date della gita");
+          return;
+        }
+
+        const [startDate, endDate] = dateStr.split(" to ").map(d => new Date(d));
+        if (!startDate || !endDate || isNaN(startDate) || isNaN(endDate)) {
+          showMsg("Formato date non valido");
+          return;
+        }
+
+        db.collection("gite").get().then(snapshot => {
+          let conflict = false;
+          snapshot.forEach(doc => {
+            const gita = doc.data();
+            if (gita.nome === nome) {
+              conflict = true;
+              showMsg("Esiste già una gita con questo nome");
+            } else {
+              const [esistenteStart, esistenteEnd] = gita.dateRange;
+              const existingStart = new Date(esistenteStart);
+              const existingEnd = new Date(esistenteEnd);
+              if ((startDate <= existingEnd && endDate >= existingStart)) {
+                conflict = true;
+                showMsg("Sovrapposizione con un'altra gita");
+              }
+            }
+          });
+          if (!conflict) {
+            db.collection("gite").add({
+              nome: nome,
+              dateRange: [startDate.toISOString(), endDate.toISOString()]
+            }).then(() => {
+              showMsg("Gita aggiunta con successo");
+              document.getElementById('nomeGita').value = "";
+              document.getElementById('dateGita').value = "";
+              loadGite();
+            }).catch(err => {
+              console.error("Errore nel salvataggio: ", err);
+              showMsg("Errore nel salvataggio della gita");
+            });
+          }
+        });
+      }
+
+      function loadGite() {
+        const lista = document.getElementById('listaGite');
+        const archivio = document.getElementById('listaGiteArchivio');
+        const btnArchivio = document.getElementById('btnArchivio');
+        lista.innerHTML = '';
+        archivio.innerHTML = '';
+        btnArchivio.style.display = 'none';
+        archivio.style.display = 'none';
+
+        db.collection("gite").get().then(snapshot => {
+          const giteArray = [];
+          snapshot.forEach(doc => {
+            giteArray.push({ id: doc.id, ...doc.data() });
+          });
+
+          giteArray.sort((a, b) => new Date(a.dateRange[0]) - new Date(b.dateRange[0]));
+          const oggi = new Date();
+          let haGitePassate = false;
+
+          giteArray.forEach(gita => {
+            const btn = document.createElement('button');
+            btn.className = 'nav-btn';
+
+            const start = new Date(gita.dateRange[0]);
+            const end = new Date(gita.dateRange[1]);
+            const options = { day: '2-digit', month: 'long', year: 'numeric' };
+            let label = `${start.toLocaleDateString('it-IT', options)}`;
+            if (start.toDateString() !== end.toDateString()) {
+              if (start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()) {
+                label = `${start.getDate()}-${end.getDate()} ${start.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })}`;
+              } else {
+                label = `${start.toLocaleDateString('it-IT', options)} - ${end.toLocaleDateString('it-IT', options)}`;
+              }
+            }
+            btn.textContent = `${gita.nome} (${label})`;
+
+            btn.onclick = () => {
+              mostraGita(gita.id, `${gita.nome} (${label})`);
+              caricaImbarcazioni();
+            };
+
+            if (end < oggi) {
+              btn.style.backgroundColor = '#ccc';
+              btn.style.color = '#333';
+              archivio.appendChild(btn);
+              haGitePassate = true;
+            } else {
+              lista.appendChild(btn);
+            }
+          });
+
+          if (haGitePassate) {
+            btnArchivio.style.display = 'inline-block';
+            btnArchivio.onclick = () => {
+              const visibile = archivio.style.display === 'block';
+              archivio.style.display = visibile ? 'none' : 'block';
+              btnArchivio.textContent = visibile ? '📁 Archivio' : '📂 Nascondi Archivio';
+            };
+          }
+        });
+      }
+
+      async function mostraSelezioneTuffo() {
+            const val = document.getElementById('menuTuffi').value;
+            document.getElementById('menuTuffi').addEventListener('change', mostraSelezioneTuffo);
+            const [data, orario] = val.split('|');
+            if (!data || !orario) return;
+
+            const doc = await db.collection('gite').doc(currentGitaId).get();
+            const g = doc.data();
+            const imbarcazioniSnapshot = await db.collection("gite").doc(currentGitaId).collection("imbarcazioni").get();
+            const imbs = imbarcazioniSnapshot.docs.map(doc => doc.data());
+            const org = g.organizzazione || {};
+            const mezziSalvati = org[data]?.[orario] || [];
+
+            const wrap = document.getElementById('organizzazioneImmersioneContainer');
+            wrap.innerHTML = '';
+
+            const div = document.createElement('div');
+            div.innerHTML = `<h4>Seleziona mezzi per ${new Date(data).toLocaleDateString('it-IT')} - ${orario}</h4>`;
+
+            const checkboxContainer = document.createElement('div');
+            checkboxContainer.style.display = 'flex';
+            checkboxContainer.style.flexWrap = 'wrap';
+            checkboxContainer.style.gap = '10px';
+
+            const rivaBox = document.createElement('div');
+            const rivaInput = document.createElement('input');
+            rivaInput.type = 'checkbox';
+            rivaInput.id = 'mezzo-riva';
+            rivaInput.value = 'Da Terra';
+            if (mezziSalvati.some(m => m.nome === 'Da Terra')) rivaInput.checked = true;
+            rivaBox.appendChild(rivaInput);
+            rivaBox.appendChild(document.createTextNode('Immersione da Riva'));
+            checkboxContainer.appendChild(rivaBox);
+
+            imbs.forEach((imb, i) => {
+              const box = document.createElement('div');
+              const input = document.createElement('input');
+              input.type = 'checkbox';
+              input.id = `mezzo-${i}`;
+              input.value = imb.nome;
+              if (mezziSalvati.some(m => m.nome === imb.nome)) input.checked = true;
+              box.appendChild(input);
+              box.appendChild(document.createTextNode(`${imb.nome} (${imb.tipologia})`));
+              checkboxContainer.appendChild(box);
+            });
+
+            div.appendChild(checkboxContainer);
+
+            const saveBtn = document.createElement('button');
+            saveBtn.textContent = 'Salva Mezzi Selezionati';
+            saveBtn.onclick = async () => {
+              const selezionati = [];
+              const mezziDaEliminare = [];
+
+              // Gestione "Da Terra"
+              const eraPresenteRiva = mezziSalvati.find(m => m.nome === 'Da Terra');
+              const rivaSelezionata = rivaInput.checked;
+
+              if (rivaSelezionata) {
+                selezionati.push({
+                  nome: 'Da Terra',
+                  tipo: 'Riva',
+                  capienza: 9999,
+                  persone: eraPresenteRiva?.persone || []
+                });
+              } else if (eraPresenteRiva?.persone?.length > 0) {
+                mezziDaEliminare.push(`Da Terra (${eraPresenteRiva.persone.length} partecipanti)`);
+              }
+
+              // Gestione imbarcazioni
+              imbs.forEach((imb, i) => {
+                const el = document.getElementById(`mezzo-${i}`);
+                const già = mezziSalvati.find(m => m.nome === imb.nome);
+                const èSelezionato = el && el.checked;
+
+                if (èSelezionato) {
+                  selezionati.push({
+                    mezzoId: imb.nome,
+                    nome: imb.nome,
+                    tipo: imb.tipologia,
+                    capienza: imb.capienza,
+                    persone: già?.persone || []
+                  });
+                } else if (già?.persone?.length > 0) {
+                  mezziDaEliminare.push(`${imb.nome} (${già.persone.length} partecipanti)`);
+                }
+              });
+
+              // Conferma eliminazione mezzi con persone
+              if (mezziDaEliminare.length > 0) {
+                const conferma = confirm(
+                  `Stai per rimuovere i seguenti mezzi che hanno già partecipanti associati:\n\n` +
+                  mezziDaEliminare.join('\n') +
+                  `\n\nProcedere comunque?`
+                );
+                if (!conferma) return;
+              }
+
+              // Salva
+              const org = g.organizzazione || {};
+              org[data] = org[data] || {};
+              org[data][orario] = selezionati;
+
+              await db.collection('gite').doc(currentGitaId).update({ organizzazione: org });
+              alert('Organizzazione salvata per il tuffo');
+              mostraSelezioneTuffo();
+            };
+
+
+            div.appendChild(saveBtn);
+
+            if (mezziSalvati.length > 0) {
+              const elenco = document.createElement('div');
+              elenco.innerHTML = '<h5>Mezzi già assegnati:</h5>';
+              mezziSalvati.forEach(mezzo => {
+                const box = document.createElement('div');
+                const occupati = mezzo.persone?.length || 0;
+                const cap = mezzo.capienza;
+                const residui = (cap === undefined) ? '∞' : Math.max(cap - occupati, 0);
+                
+                const titolo = document.createElement('strong');
+                titolo.textContent = `${mezzo.nome} (${mezzo.tipo}) — `
+                                   + (cap !== undefined ? `${occupati}/${cap}` : `${occupati}`)
+                                   + ` partecipanti  |  posti residui: ${residui}`;
+
+                box.appendChild(titolo);
+                
+                // Campo Punto Immersione (caricato da mezzo.punto se esiste)
+                const puntoInput = document.createElement('input');
+                puntoInput.type = 'text';
+                puntoInput.placeholder = 'Punto di immersione';
+                puntoInput.style.marginLeft = '10px';
+                puntoInput.style.marginTop = '10px';
+                puntoInput.value = mezzo.punto || '';
+
+                // Pulsante Salva Punto
+                const btnSalvaPunto = document.createElement('button');
+                btnSalvaPunto.textContent = 'Salva Punto Immersione';
+                btnSalvaPunto.style.marginLeft = '5px';
+                btnSalvaPunto.onclick = async () => {
+                  const doc = await db.collection('gite').doc(currentGitaId).get();
+                  const g = doc.data();
+                  const val = document.getElementById('menuTuffi').value;
+                  const [giorno, orario] = val.split('|');
+
+                  const org = g.organizzazione || {};
+                  if (!org[giorno] || !org[giorno][orario]) return;
+
+                  const mezzi = org[giorno][orario];
+                  const m = mezzi.find(m => m.nome === mezzo.nome);
+                  if (m) {
+                    m.punto = puntoInput.value.trim();
+                    await db.collection('gite').doc(currentGitaId).update({ organizzazione: org });
+                    alert('Punto di immersione salvato.');
+                  }
+                };
+                box.appendChild(puntoInput);
+                box.appendChild(btnSalvaPunto);
+
+                if (mezzo.persone && mezzo.persone.length > 0) {
+                  const tabella = document.createElement('table');
+                  tabella.style.marginTop = '10px';
+                  tabella.style.borderCollapse = 'collapse';
+                  tabella.innerHTML = `
+                    <thead>
+                      <tr>
+                        <th style="width: 40px;"></th>
+                        <th style="min-width: 180px;">Nome</th>
+                        <th style="min-width: 120px;">Corso</th>
+                        <th style="min-width: 120px;">Categoria</th>
+                      </tr>
+                    </thead>
+                    <tbody id="tbody_${mezzo.nome.replace(/\s+/g, '_')}"></tbody>
+                  `;
+
+                  const tbody = tabella.querySelector('tbody');
+
+                  mezzo.persone.forEach(nome => {
+                    const partecipante = (g.partecipanti || []).find(p => p.nome === nome);
+                    const corso = partecipante?.corso || '';
+                    const categoria = partecipante?.categoria || '';
+                    const statoPresenza = (g.presenze?.[nome]?.[`${data}|${orario}`]) ?? true;
+
+                    const tr = document.createElement('tr');
+                    const tdCheck = document.createElement('td');
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.className = 'chkPresenza';
+                    checkbox.dataset.nome = nome;
+                    checkbox.checked = statoPresenza;
+
+                    tdCheck.appendChild(checkbox);
+                    const tdNome = document.createElement('td');
+                    const tdCorso = document.createElement('td');
+                    const tdCategoria = document.createElement('td');
+
+                    tdNome.textContent = nome;
+                    tdNome.style.color = statoPresenza ? 'green' : 'red';
+                    tdCorso.textContent = corso;
+                    tdCategoria.textContent = categoria;
+
+                    tr.appendChild(tdCheck);
+                    tr.appendChild(tdNome);
+                    tr.appendChild(tdCorso);
+                    tr.appendChild(tdCategoria);
+
+                    tbody.appendChild(tr);
+                  });
+
+                  box.appendChild(tabella);
+
+                  // Pulsante per salvare le presenze in blocco
+                  const salvaPresenzeBtn = document.createElement('button');
+                  salvaPresenzeBtn.textContent = 'Salva Presenze';
+                  salvaPresenzeBtn.style.marginTop = '10px';
+                  salvaPresenzeBtn.style.backgroundColor = '#28a745';  // verde
+                  salvaPresenzeBtn.style.color = 'white';
+                  salvaPresenzeBtn.onclick = async () => {
+                    const checkboxes = box.querySelectorAll('.chkPresenza');
+                    const aggiornamenti = {};
+
+                    checkboxes.forEach(chk => {
+                      const nome = chk.dataset.nome;
+                      const key = `presenze.${nome}.${data}|${orario}`;
+                      aggiornamenti[key] = chk.checked;
+                    });
+
+                    await db.collection('gite').doc(currentGitaId).update(aggiornamenti);
+                    checkboxes.forEach(chk => {
+                      const td = chk.closest('tr')?.querySelector('td:nth-child(2)');
+                      if (td) {
+                        td.style.color = chk.checked ? 'green' : 'red';
+                      }
+                    });
+
+                    alert('Presenze salvate correttamente');
+                  };
+
+                  box.appendChild(salvaPresenzeBtn);
+                }
+
+
+                
+                const btnAssoc = document.createElement('button');
+                btnAssoc.textContent = 'Associa Partecipanti';
+                btnAssoc.style.marginTop = '10px';
+                btnAssoc.style.marginLeft = '10px';
+                btnAssoc.onclick = () => {
+                  mostraFiltroPartecipanti(mezzo.nome);
+                };
+                box.appendChild(btnAssoc);
+
+                
+                const bottoneFoglioBarca = document.createElement('button');
+                bottoneFoglioBarca.textContent = 'Scarica foglio barca';
+                bottoneFoglioBarca.style.marginTop = '10px';
+                bottoneFoglioBarca.style.marginLeft = '10px';
+                bottoneFoglioBarca.style.backgroundColor = "#007bff";
+                bottoneFoglioBarca.style.color = "white";
+                bottoneFoglioBarca.onclick = async () => {
+                  const val = document.getElementById('menuTuffi').value;
+                  const [giorno, orario] = val.split('|');
+                  if (!giorno || !orario) {
+                    alert('Seleziona prima un tuffo');
+                    return;
+                  }
+
+                  const doc = await db.collection('gite').doc(currentGitaId).get();
+                  const dati = doc.data();
+                  const listaCompletaPartecipanti = dati.partecipanti || [];
+
+                  generaFoglioBarcaPDF({
+                    giorno,
+                    orario,
+                    mezzo,
+                    partecipanti: mezzo.persone || [],
+                    partecipantiTotali: listaCompletaPartecipanti,
+                    nomeGita: dati.nome,
+                    puntoImmersione: puntoInput.value.trim()  // ← legge direttamente dal campo attuale
+                  });
+                };
+
+                box.appendChild(bottoneFoglioBarca);
+
+                elenco.appendChild(box);
+                
+              });
+              div.appendChild(elenco);
+            }
+
+            wrap.appendChild(div);
+          }
+      
+      
+      function aggiungiImbarcazione() {
+  const nome = document.getElementById('nomeImbarcazione').value.trim();
+  const capienza = parseInt(document.getElementById('capienzaImbarcazione').value);
+  const tipologia = document.getElementById('tipologiaImbarcazione').value;
+  if (!nome || isNaN(capienza) || capienza <= 0) {
+    showMsg("Compila correttamente tutti i campi dell'imbarcazione.");
+    return;
+  }
+  const gitaRef = db.collection("gite").where("nome", "==", document.getElementById('titoloGita').textContent.split(' (')[0]);
+  gitaRef.get().then(querySnapshot => {
+    if (!querySnapshot.empty) {
+      const docId = querySnapshot.docs[0].id;
+      db.collection("gite").doc(docId).collection("imbarcazioni").where("nome", "==", nome).get().then(snapshot => {
+        if (!snapshot.empty) {
+          showMsg("Esiste già una imbarcazione con questo nome.");
+          return;
+        }
+        db.collection("gite").doc(docId).collection("imbarcazioni").add({ nome, capienza, tipologia })
+          .then(() => {
+            showMsg("Imbarcazione aggiunta.");
+            document.getElementById('nomeImbarcazione').value = '';
+            document.getElementById('capienzaImbarcazione').value = '';
+            caricaImbarcazioni();
+          });
+      });
+    }
+  });
+}
+      function formatTitolo(s) {
+        return (s || '').toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+      }
+      
+      function generaFoglioBarcaPDF({ giorno, orario, mezzo, partecipanti, partecipantiTotali, nomeGita, puntoImmersione }) {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        const loghi = [1, 2].map(i => localStorage.getItem(`logoPDF_${i}`)).filter(Boolean);
+        const logoY = 5;
+        const logoSize = 25;
+        const targetHeight = 25;
+        const spacing = 10;
+        const imagesToInsert = [];
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const spazioTotale = logoSize * loghi.length + 10 * (loghi.length - 1);
+        let startX = (pageWidth - spazioTotale) / 2;
+
+        let loaded = 0;
+        loghi.forEach((base64, index) => {
+          const img = new Image();
+          img.onload = () => {
+            const aspect = img.width / img.height;
+            const width = targetHeight * aspect;
+            imagesToInsert[index] = { base64, width };
+            loaded++;
+            if (loaded === loghi.length) {
+              const totalWidth = imagesToInsert.reduce((acc, el) => acc + el.width, 0) + spacing * (imagesToInsert.length - 1);
+              const pageWidth = doc.internal.pageSize.getWidth();
+              let startX = (pageWidth - totalWidth) / 2;
+              imagesToInsert.forEach(({ base64, width }) => {
+                doc.addImage(base64, 'PNG', startX, logoY, width, targetHeight);
+                startX += width + spacing;
+              });
+              continuaGenerazionePDF();  // Avvia il resto del PDF dopo i loghi
+            }
+          };
+          img.src = base64;
+        });
+        
+        // Blocca il resto della generazione finché non carica i loghi
+        function continuaGenerazionePDF() {
+          let y = logoY + targetHeight + 5;
+
+          doc.save(nomeFile);
+        }
+
+        const dataLabel = new Date(giorno).toLocaleDateString('it-IT');
+        const nomeFile = `${mezzo.nome.replace(/\s+/g, '_')}_${dataLabel.replace(/\//g, '-')}_${orario.replace(':', '')}.pdf`;
+
+        const utenti = [];
+        const staff = [];
+        const corsiSet = new Set();
+
+        partecipanti.forEach(nome => {
+          const p = partecipantiTotali.find(x => x.nome === nome);
+          if (!p) return;
+          const cat = (p.categoria || '').toLowerCase();
+          const isStaff = ['istruttore', 'aiutoistruttore', 'divemaster'].includes(cat);
+          const obj = {
+            nome: p.nome,
+            corso: p.corso || 'Nessun corso',
+            categoria: p.categoria || 'N/A'
+          };
+          corsiSet.add(p.corso || 'Nessun corso');
+          isStaff ? staff.push(obj) : utenti.push(obj);
+        });
+
+        const corsi = Array.from(corsiSet).filter(Boolean).join(" e ") || 'Nessun corso';
+        const titolo = `${mezzo.nome} (${mezzo.tipo}) — ${corsi}`;
+
+        // Ordinamento allievi: corso, nome
+        utenti.sort((a, b) => {
+          const corsoA = a.corso.toLowerCase();
+          const corsoB = b.corso.toLowerCase();
+          if (corsoA < corsoB) return -1;
+          if (corsoA > corsoB) return 1;
+          return a.nome.localeCompare(b.nome);
+        });
+
+        // Priorità staff
+        function categoriaPriorita(cat) {
+          switch (cat.toLowerCase()) {
+            case 'istruttore': return 0;
+            case 'aiutoistruttore': return 1;
+            case 'divemaster': return 2;
+            default: return 3;
+          }
+        }
+
+        // Ordinamento staff: corso, priorità categoria, nome
+        staff.sort((a, b) => {
+          const corsoA = a.corso.toLowerCase();
+          const corsoB = b.corso.toLowerCase();
+          if (corsoA < corsoB) return -1;
+          if (corsoA > corsoB) return 1;
+          const prioritaA = categoriaPriorita(a.categoria);
+          const prioritaB = categoriaPriorita(b.categoria);
+          if (prioritaA !== prioritaB) return prioritaA - prioritaB;
+          return a.nome.localeCompare(b.nome);
+        });
+
+        let y = logoY + logoSize + 15;
+        doc.setFontSize(14);
+        doc.text(titolo, 10, y);
+        y += 8;
+
+        doc.setFontSize(11);
+        doc.text(`GITA: ${nomeGita}`, 10, y); y += 6;
+        if (puntoImmersione) {
+          doc.text(`PUNTO IMMERSIONE: ${puntoImmersione}`, 10, y); y += 6;
+        }
+        doc.text(`DATA: ${dataLabel}`, 10, y); y += 6;
+        doc.text(`ORARIO: ${orario}`, 10, y); y += 6;
+        doc.text(`POSTI BARCA: ${mezzo.capienza || '∞'}`, 10, y);
+        doc.text(`SUBACQUEI A BORDO: ${partecipanti.length}`, 100, y);
+        y += 10;
+
+        const tableOpts = {
+          theme: 'grid',
+          styles: { fontSize: 10 },
+          headStyles: { fillColor: [0, 123, 255] },
+          margin: { left: 10, right: 10 }
+        };
+
+        if (utenti.length) {
+          doc.text('ALLIEVI', 10, y);
+          y += 6;
+          doc.autoTable({
+            ...tableOpts,
+            startY: y,
+            head: [['#', 'Nome', 'Corso', 'Categoria']],
+            body: utenti.map((p, i) => [
+              i + 1,
+              formatTitolo(p.nome),
+              formatTitolo(p.corso),
+              formatTitolo(p.categoria)
+            ])
+          });
+          y = doc.lastAutoTable.finalY + 10;
+        }
+
+        if (staff.length) {
+          doc.text('STAFF', 10, y);
+          y += 6;
+          doc.autoTable({
+            ...tableOpts,
+            startY: y,
+            head: [['#', 'Nome', 'Corso', 'Categoria']],
+            body: staff.map((p, i) => [i + 1, p.nome, p.corso, p.categoria])
+          });
+        }
+
+        doc.save(nomeFile);
+      }
+
+      async function salvaPartecipantiMezzo(mezzoNome, nomeSelezionato) {
+            const doc = await db.collection('gite').doc(currentGitaId).get();
+            const g = doc.data();
+            const val = document.getElementById('menuTuffi').value;
+            const [data, orario] = val.split('|');
+
+            const org = g.organizzazione || {};
+            if (!org[data] || !org[data][orario]) return;
+
+            const mezzi = org[data][orario];
+            const mezziAltri = mezzi.filter(m => m.nome !== mezzoNome);
+            const giaAssegnati = new Set();
+            mezziAltri.forEach(m => (m.persone || []).forEach(p => giaAssegnati.add(p)));
+
+            if (giaAssegnati.has(nomeSelezionato)) {
+              alert(`Attenzione: il partecipante ${nomeSelezionato} è già assegnato ad un altro mezzo nello stesso tuffo.`);
+              return;
+            }
+
+            const mezzo = mezzi.find(m => m.nome === mezzoNome);
+            if (mezzo) {
+              mezzo.persone = mezzo.persone || [];
+              if (mezzo.capienza !== undefined && mezzo.persone.length >= mezzo.capienza) {
+                alert(`La capienza massima per ${mezzo.nome} è ${mezzo.capienza}.`);
+                return;
+              }
+              if (!mezzo.persone.includes(nomeSelezionato)) {
+                mezzo.persone.push(nomeSelezionato);
+              }
+            }
+
+            await db.collection('gite').doc(currentGitaId).update({ organizzazione: org });
+            mostraSelezioneTuffo();
+          }
+
+          async function rimuoviPartecipanteDaMezzo(mezzoNome, nomePartecipante) {
+            const doc = await db.collection('gite').doc(currentGitaId).get();
+            const g = doc.data();
+            const val = document.getElementById('menuTuffi').value;
+            const [data, orario] = val.split('|');
+
+            const org = g.organizzazione || {};
+            if (!org[data] || !org[data][orario]) return;
+
+            const mezzo = org[data][orario].find(m => m.nome === mezzoNome);
+            if (mezzo && mezzo.persone) {
+              mezzo.persone = mezzo.persone.filter(p => p !== nomePartecipante);
+            }
+
+            await db.collection('gite').doc(currentGitaId).update({ organizzazione: org });
+            mostraSelezioneTuffo();
+          }
+
+          let partecipantiAssegnati = [];
+              let partecipantiSelezionatiTemp = new Set();
+
+              function mostraFiltroPartecipanti(mezzoNome) {
+                partecipantiSelezionatiTemp = new Set();
+                const container = document.createElement('div');
+                container.className = 'section';
+                container.innerHTML = `
+                  <h5>Seleziona Partecipanti per ${mezzoNome}</h5>
+                  <label>Corso:</label>
+                  <select id="filtroCorso"></select>
+                  <label>Categoria:</label>
+                  <select id="filtroCategoria"></select>
+
+                  <!--  ✅  Nuovi pulsanti  -->
+                  <button id="btnSelezionaTutti">Seleziona tutti</button>
+                  <button id="btnDeselezionaTutti">Deseleziona tutti</button>
+
+                  <div id="checklistPartecipanti"></div>
+                  <button id="btnConfermaPartecipanti">Conferma Associazione</button>
+                  <p id="conteggioSelezionati"></p>
+                `;
+
+                document.getElementById('organizzazioneImmersioneContainer').appendChild(container);
+
+                document.getElementById('btnConfermaPartecipanti').addEventListener('click', () => salvaSelezioneMultipla(mezzoNome));
+                //  Seleziona tutti i check-box abilitati
+                document.getElementById('btnSelezionaTutti')
+                        .addEventListener('click', () => {
+                  document.querySelectorAll('#checklistPartecipanti input[type="checkbox"]:not(:disabled)')
+                          .forEach(chk => {
+                            chk.checked = true;
+                            partecipantiSelezionatiTemp.add(chk.value);
+                          });
+                  aggiornaConteggioSelezionati();
+                });
+
+                //  Deseleziona tutti i check-box abilitati
+                document.getElementById('btnDeselezionaTutti')
+                        .addEventListener('click', () => {
+                  document.querySelectorAll('#checklistPartecipanti input[type="checkbox"]:not(:disabled)')
+                          .forEach(chk => {
+                            chk.checked = false;
+                            partecipantiSelezionatiTemp.delete(chk.value);
+                          });
+                  aggiornaConteggioSelezionati();
+                  window.capienzaCorrenteMezzo = mezzo?.capienza;   // undefined → capienza illimitata (Da Terra)
+                });
+                
+
+                db.collection('gite').doc(currentGitaId).get().then(doc => {
+                  window.organizzazioneCache = doc.data().organizzazione || {};
+                  const data = doc.data();
+                  window.partecipanti = data.partecipanti || [];
+                  const val = document.getElementById('menuTuffi').value;
+                  const [dataTuffo, orario] = val.split('|');
+                  const org = data.organizzazione || {};
+                  const mezzo = (org[dataTuffo] && org[dataTuffo][orario] || []).find(m => m.nome === mezzoNome);
+                  partecipantiAssegnati = mezzo?.persone || [];
+                  partecipantiAssegnati.forEach(p => partecipantiSelezionatiTemp.add(p));
+
+                  initFiltri();
+                  filtraPartecipanti();
+                });
+              }
+              
+              function initFiltri() {
+                const corsoSelect = document.getElementById('filtroCorso');
+                const categoriaSelect = document.getElementById('filtroCategoria');
+
+                corsoSelect.addEventListener('change', filtraPartecipanti);
+                categoriaSelect.addEventListener('change', filtraPartecipanti);
+
+                aggiornaOpzioniFiltri();
+              }
+
+              function aggiornaOpzioniFiltri() {
+                const corsoSelect = document.getElementById('filtroCorso');
+                const categoriaSelect = document.getElementById('filtroCategoria');
+                const corsoSelezionato = corsoSelect.value;
+                const categoriaSelezionata = categoriaSelect.value;
+                const partecipanti = window.partecipanti || [];
+
+                const corsi = [...new Set(partecipanti
+                  .filter(p => !categoriaSelezionata || p.categoria?.toLowerCase() === categoriaSelezionata)
+                  .map(p => p.corso || ''))].sort();
+                const categorie = [...new Set(partecipanti
+                  .filter(p => !corsoSelezionato || p.corso === corsoSelezionato)
+                  .map(p => p.categoria?.toLowerCase() || ''))].sort();
+
+                corsoSelect.innerHTML = '<option value="">-- Tutti --</option>';
+                corsi.forEach(c => {
+                  const opt = document.createElement('option');
+                  opt.value = c;
+                  opt.textContent = c || 'Nessun corso';
+                  if (c === corsoSelezionato) opt.selected = true;
+                  corsoSelect.appendChild(opt);
+                });
+
+                categoriaSelect.innerHTML = '<option value="">-- Tutte --</option>';
+                categorie.forEach(cat => {
+                  if (cat) {
+                    const opt = document.createElement('option');
+                    opt.value = cat;
+                    opt.textContent = cat.charAt(0).toUpperCase() + cat.slice(1);
+                    if (cat === categoriaSelezionata) opt.selected = true;
+                    categoriaSelect.appendChild(opt);
+                  }
+                });
+              }
+
+              function filtraPartecipanti() {
+                aggiornaOpzioniFiltri();
+
+                const corso = document.getElementById('filtroCorso').value;
+                const categoria = document.getElementById('filtroCategoria').value;
+                const partecipanti = window.partecipanti || [];
+                const lista = document.getElementById('checklistPartecipanti');
+                lista.innerHTML = '';
+
+                const filtrati = partecipanti.filter(p =>
+                  (!corso || p.corso === corso) &&
+                  (!categoria || p.categoria?.toLowerCase() === categoria)
+                );
+
+                filtrati.sort((a, b) => {
+                  const staff = ['istruttore','aiutoistruttore','divemaster'];
+                  const catA = staff.includes(a.categoria?.toLowerCase()) ? 0 : 1;
+                  const catB = staff.includes(b.categoria?.toLowerCase()) ? 0 : 1;
+                  if (catA !== catB) return catA - catB;
+                  if (a.corso !== b.corso) return (a.corso || '').localeCompare(b.corso || '');
+                  return a.nome.localeCompare(b.nome);
+                });
+
+                filtrati.forEach((p, i) => {
+                  const div = document.createElement('div');
+                  const chk = document.createElement('input');
+                  chk.type = 'checkbox';
+                  chk.id = `p_${i}`;
+                  chk.value = p.nome;
+
+                  const giaAssegnati = new Set();
+                  const val = document.getElementById('menuTuffi').value;
+                  const [data, orario] = val.split('|');
+                  const gite = window.organizzazioneCache || {};
+                  const mezziTuffo = (gite[data] && gite[data][orario]) || [];
+                  mezziTuffo.forEach(m => {
+                    if (!partecipantiAssegnati.includes(p.nome) && (m.persone || []).includes(p.nome)) {
+                      giaAssegnati.add(p.nome);
+                    }
+                  });
+
+                  if (partecipantiSelezionatiTemp.has(p.nome)) chk.checked = true;
+                  if (giaAssegnati.has(p.nome)) {
+                    chk.disabled = true;
+                    div.appendChild(document.createTextNode(`${p.nome} (già assegnato)`));
+                  } else {
+                    chk.addEventListener('change', () => {
+                      if (chk.checked) partecipantiSelezionatiTemp.add(p.nome);
+                      else partecipantiSelezionatiTemp.delete(p.nome);
+                      aggiornaConteggioSelezionati();
+                    });
+                    div.appendChild(chk);
+                    div.appendChild(document.createTextNode(`${p.nome} (${p.categoria} - ${p.corso || 'Nessun corso'})`));
+                  }
+                  lista.appendChild(div);
+                });
+
+                aggiornaConteggioSelezionati();
+              }
+
+              function aggiornaConteggioSelezionati() {
+                const sel = partecipantiSelezionatiTemp.size;
+                const cap = window.capienzaCorrenteMezzo;
+                const residui = (cap === undefined) ? '∞' : Math.max(cap - sel, 0);
+                const testo = `${sel} partecipanti selezionati` +
+                              (cap !== undefined ? ` — posti residui: ${residui}` : '');
+                document.getElementById('conteggioSelezionati').textContent = testo;
+                
+              }
+              
+
+              async function salvaSelezioneMultipla(mezzoNome) {
+                const doc = await db.collection('gite').doc(currentGitaId).get();
+                const g = doc.data();
+                const val = document.getElementById('menuTuffi').value;
+                const [data, orario] = val.split('|');
+                const nomi = Array.from(partecipantiSelezionatiTemp);
+                const org = g.organizzazione || {};
+                if (!org[data] || !org[data][orario]) return;
+
+                const mezzi = org[data][orario];
+                const mezzo = mezzi.find(m => m.nome === mezzoNome);
+                const giaAssegnati = new Set();
+                mezzi.filter(m => m.nome !== mezzoNome).forEach(m => (m.persone || []).forEach(p => giaAssegnati.add(p)));
+
+                const doppi = nomi.filter(n => giaAssegnati.has(n));
+                if (doppi.length > 0) {
+                  alert("I seguenti partecipanti sono già assegnati a un altro mezzo nello stesso tuffo:\n" + doppi.join("\n"));
+                  return;
+                }
+
+                if (mezzo.capienza !== undefined && nomi.length > mezzo.capienza) {
+                  alert(`La capienza massima per ${mezzo.nome} è ${mezzo.capienza}.`);
+                  return;
+                }
+
+                mezzo.persone = nomi;
+                await db.collection('gite').doc(currentGitaId).update({ organizzazione: org });
+
+                const capienza = mezzo.capienza;
+                const residui = (capienza === undefined) ? '∞' : Math.max(capienza - nomi.length, 0);
+                alert(`Partecipanti aggiornati per ${mezzoNome} — posti residui: ${residui}`);
+
+                mostraSelezioneTuffo();
+              }
+      
+function caricaImbarcazioni() {
+  const lista = document.getElementById('listaImbarcazioni');
+  lista.innerHTML = '';
+  const gitaRef = db.collection("gite").where("nome", "==", document.getElementById('titoloGita').textContent.split(' (')[0]);
+  gitaRef.get().then(querySnapshot => {
+    if (!querySnapshot.empty) {
+      const docId = querySnapshot.docs[0].id;
+      db.collection("gite").doc(docId).collection("imbarcazioni").get().then(snapshot => {
+        snapshot.forEach(doc => {
+          const imbarcazione = doc.data();
+          const div = document.createElement('div');
+          div.innerHTML = `${imbarcazione.nome} (${imbarcazione.tipologia}) - ${imbarcazione.capienza} posti ` +
+            `<button onclick="eliminaImbarcazione('${doc.id}')">Elimina</button>`;
+          lista.appendChild(div);
+        });
+      });
+    }
+  });
+}
+
+function eliminaImbarcazione(id) {
+  const nomeGita = document.getElementById('titoloGita').textContent.split(' (')[0];
+  const gitaRef = db.collection("gite").where("nome", "==", nomeGita);
+
+  gitaRef.get().then(querySnapshot => {
+    if (querySnapshot.empty) return;
+
+    const docId = querySnapshot.docs[0].id;
+    const gitaDocRef = db.collection("gite").doc(docId);
+
+    // Recupera il nome dell’imbarcazione prima di tentare l’eliminazione
+    db.collection("gite").doc(docId).collection("imbarcazioni").doc(id).get().then(imbDoc => {
+      const imbarcazione = imbDoc.data();
+      const nomeImbarcazione = imbarcazione?.nome;
+      if (!nomeImbarcazione) return;
+
+      gitaDocRef.get().then(doc => {
+        const dati = doc.data();
+        const organizzazione = dati.organizzazione || {};
+        let trovata = false;
+
+        for (const giorno in organizzazione) {
+          for (const orario in organizzazione[giorno]) {
+            const mezzi = organizzazione[giorno][orario] || [];
+            const mezzo = mezzi.find(m => m.nome === nomeImbarcazione);
+            if (mezzo && mezzo.persone && mezzo.persone.length > 0) {
+              trovata = true;
+              break;
+            }
+          }
+          if (trovata) break;
+        }
+
+        if (trovata) {
+          alert(`Impossibile eliminare "${nomeImbarcazione}" perché è già associata a dei partecipanti.`);
+          return;
+        }
+
+        if (confirm(`Sei sicuro di voler eliminare "${nomeImbarcazione}"?`)) {
+          db.collection("gite").doc(docId).collection("imbarcazioni").doc(id).delete()
+            .then(() => {
+              showMsg("Imbarcazione eliminata.");
+              caricaImbarcazioni();
+            });
+        }
+      });
+    });
+  });
+}
+
+async function caricaOrganizzazioneImmersione() {
+  if (!currentGitaId) return;
+  document.getElementById('organizzazioneImmersioneContainer').innerHTML = '';
+  const doc = await db.collection('gite').doc(currentGitaId).get();
+  const g = doc.data();
+  const tuffi = g.tuffi || {};
+
+  const select = document.getElementById('menuTuffi');
+  select.innerHTML = '';
+
+  const opDefault = document.createElement('option');
+  opDefault.value = '';
+  opDefault.textContent = '-- Seleziona --';
+  select.appendChild(opDefault);
+
+  const giorni = Object.keys(tuffi).sort();
+  if (giorni.length === 0) {
+    const noOption = document.createElement('option');
+    noOption.textContent = 'Nessun tuffo disponibile';
+    noOption.disabled = true;
+    select.appendChild(noOption);
+    return;
+  }
+
+  for (const giorno of giorni) {
+    const orari = tuffi[giorno].sort();
+    for (const orario of orari) {
+      const option = document.createElement('option');
+      option.value = `${giorno}|${orario}`;
+      const dataLabel = new Date(giorno).toLocaleDateString('it-IT');
+      option.textContent = `${dataLabel} - ${orario}`;
+      select.appendChild(option);
+    }
+  }
+
+  // Autoseleziona il primo valido
+  if (select.options.length > 1) {
+    select.selectedIndex = 0;
+    mostraSelezioneTuffo();
+  }
+}
+/* ---------- Calendario Tuffi ---------- */
+function caricaCalendarioTuffi(docId){
+  const cont=document.getElementById('tuffiContainer');
+  cont.innerHTML='';
+  db.collection('gite').doc(docId).get().then(d=>{
+    if(!d.exists) return; const g=d.data();
+    const start=new Date(g.dateRange[0]); const end=new Date(g.dateRange[1]);
+    for(let day=new Date(start);day<=end;day.setDate(day.getDate()+1)){
+      const iso=day.toISOString().split('T')[0];
+      const wrapper=document.createElement('div');
+      wrapper.className='giorno-tuffi';
+      wrapper.dataset.data=iso;
+      wrapper.innerHTML=`<strong>${day.toLocaleDateString('it-IT')}</strong> `;
+      const list=document.createElement('div'); list.className='lista-orari'; wrapper.appendChild(list);
+      const addBtn=document.createElement('button'); addBtn.textContent='Aggiungi orario';
+      addBtn.onclick=()=>addOrario(wrapper);
+      wrapper.appendChild(addBtn);
+      cont.appendChild(wrapper);
+      if(g.tuffi && g.tuffi[iso]) g.tuffi[iso].forEach(o=>addOrario(wrapper,o));
+    }
+  });
+}
+
+function addOrario(wrapper,val=''){
+  const list=wrapper.querySelector('.lista-orari');
+  const span=document.createElement('span'); span.style.marginRight='5px';
+  const inp=document.createElement('input'); inp.type='time'; inp.value=val; span.appendChild(inp);
+  const del=document.createElement('button'); del.textContent='X'; del.style.marginLeft='2px';
+  del.onclick=()=>{ if(confirm('Rimuovere questo orario?')) span.remove(); };
+  span.appendChild(del);
+  list.appendChild(span);
+}
+
+function salvaTuffi() {
+  if (!currentGitaId) return;
+
+  const dati = {};
+  document.querySelectorAll('#tuffiContainer .giorno-tuffi').forEach(div => {
+    const iso = div.dataset.data;
+    const orari = Array.from(div.querySelectorAll('input[type="time"]'))
+      .map(i => i.value.trim())
+      .filter(v => v);
+    dati[iso] = orari;
+  });
+
+  db.collection('gite').doc(currentGitaId).get().then(doc => {
+    const gita = doc.data();
+    const organizzazione = gita.organizzazione || {};
+    const vecchiTuffi = gita.tuffi || {};
+    const nuovaOrganizzazione = {};
+
+    for (const giorno in dati) {
+      nuovaOrganizzazione[giorno] = {};
+      const nuoviOrari = dati[giorno];
+      const vecchiOrari = vecchiTuffi[giorno] || [];
+
+      nuoviOrari.forEach(nuovoOrario => {
+        // Se esiste già, mantieni l'associazione
+        if (organizzazione[giorno]?.[nuovoOrario]) {
+          nuovaOrganizzazione[giorno][nuovoOrario] = JSON.parse(JSON.stringify(organizzazione[giorno][nuovoOrario]));
+        } else {
+          // Trova orario più vicino da cui copiare
+          let trovato = null;
+          let minDiff = Infinity;
+          vecchiOrari.forEach(vecchio => {
+            const diff = Math.abs(parseInt(vecchio.replace(":", "")) - parseInt(nuovoOrario.replace(":", "")));
+            if (diff < minDiff) {
+              minDiff = diff;
+              trovato = vecchio;
+            }
+          });
+
+          if (trovato && organizzazione[giorno]?.[trovato]) {
+            nuovaOrganizzazione[giorno][nuovoOrario] = JSON.parse(JSON.stringify(organizzazione[giorno][trovato]));
+          } else {
+            nuovaOrganizzazione[giorno][nuovoOrario] = [];
+          }
+        }
+      });
+    }
+
+    db.collection('gite').doc(currentGitaId).update({
+      tuffi: dati,
+      organizzazione: nuovaOrganizzazione
+    }).then(() => {
+      showMsg('Tuffi aggiornati con trasferimento delle associazioni');
+    }).catch(() => {
+      showMsg('Errore nel salvataggio dei tuffi');
+    });
+  });
+}
+
+function esportaElencoPresenze() {
+  const docRef = db.collection("gite").doc(currentGitaId);
+
+  docRef.get().then((docSnap) => {
+    if (!docSnap.exists) {
+      alert("Documento gita non trovato.");
+      return;
+    }
+
+    const gita = docSnap.data();
+    const presenze = gita.presenze || {};
+    const partecipanti = gita.partecipanti || [];
+
+    const datiPartecipanti = {};
+    partecipanti.forEach(p => {
+      datiPartecipanti[p.nome] = {
+        corso: p.corso || "",
+        categoria: p.categoria || ""
+      };
+    });
+
+    const tutteLeDate = new Set();
+    for (const nome in presenze) {
+      Object.keys(presenze[nome]).forEach(dataOra => tutteLeDate.add(dataOra));
+    }
+
+    const dateOrdinata = Array.from(tutteLeDate).sort();
+    const intestazioniFormattate = dateOrdinata.map(dt => {
+      const [data, ora] = dt.split("|");
+      const [aaaa, mm, gg] = data.split("-");
+      return `${gg}-${mm}-${aaaa} | ${ora}`;
+    });
+
+    const staff = [];
+    const allievi = [];
+
+    for (const nome in presenze) {
+      const corso = datiPartecipanti[nome]?.corso || "";
+      const categoria = datiPartecipanti[nome]?.categoria || "";
+
+      const riga = {
+        Nome: nome,
+        Corso: corso,
+        Categoria: categoria
+      };
+      let count = 0;
+
+      dateOrdinata.forEach((dt, i) => {
+        const presenza = presenze[nome][dt];
+        riga[intestazioniFormattate[i]] = presenza === true ? "x" : "";
+        if (presenza === true) count++;
+      });
+
+      riga["Totale"] = count;
+
+      if (categoria.toLowerCase() === "staff") {
+        staff.push(riga);
+      } else {
+        allievi.push(riga);
+      }
+    }
+
+    // Ordina i nomi alfabeticamente
+    staff.sort((a, b) => a.Nome.localeCompare(b.Nome));
+    allievi.sort((a, b) => a.Nome.localeCompare(b.Nome));
+    const dati = [...staff, {}, ...allievi];
+
+    const header = ["Nome", "Corso", "Categoria", ...intestazioniFormattate, "Totale"];
+    const worksheet = XLSX.utils.json_to_sheet(dati, { header: header });
+
+    // Imposta larghezza colonne in base al contenuto
+    worksheet['!cols'] = header.map(h => {
+      const maxLen = Math.max(
+        h.length,
+        ...dati.map(row => row && row[h] ? String(row[h]).length : 0)
+      );
+      return { wch: maxLen + 2 };
+    });
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Presenze");
+
+    // Costruzione del nome file
+    const nomeGita = (gita.nome || "Gita").replace(/\s+/g, "_");
+    const primaData = dateOrdinata[0]?.split("|")[0];
+    const ultimaData = dateOrdinata[dateOrdinata.length - 1]?.split("|")[0];
+    const formatData = d => {
+      const [yyyy, mm, dd] = d.split("-");
+      return `${dd}_${mm}`;
+    };
+    const periodo = `${formatData(primaData)}_${formatData(ultimaData)}`;
+    const nomeFile = `Elenco_Presenze_${nomeGita}_${periodo}.xlsx`;
+
+    XLSX.writeFile(workbook, nomeFile);
+
+  }).catch((error) => {
+    console.error("Errore durante l'esportazione:", error);
+    alert("Errore durante l'esportazione. Controlla la console.");
+  });
+}
+
+function listaPartecipantiHTML(arr){
+  if (!arr.length) return '<em>Nessun partecipante</em>';
+  return '<table><tr><th>Nome</th><th>Categoria</th><th>Corso</th></tr>' +
+         arr.map(p=>`<tr><td>${p.nome}</td><td>${p.categoria}</td><td>${p.corso||''}</td></tr>`).join('') +
+         '</table>';
+}
+function riepilogoHTML(arr){
+  if (!arr.length) return '<em>Nessun partecipante</em>';
+  const map = {};
+  arr.forEach(p => {
+    const c = p.corso || 'Nessun corso';
+    const cat = p.categoria?.toLowerCase() || '';
+    if (!map[c]) map[c] = { utenti: 0, staff: 0 };
+    if (['istruttore','aiutoistruttore','divemaster'].includes(cat)) {
+      map[c].staff++;
+    } else {
+      map[c].utenti++;
+    }
+  });
+
+  let h = `<p><strong>Totale Subacquei: ${arr.length}</strong></p>`;
+  h += '<table><tr><th>Corso</th><th>Utenti</th><th>Staff</th><th>Totale</th></tr>';
+  Object.entries(map).forEach(([corso, v]) => {
+    h += `<tr><td>${corso}</td><td>${v.utenti}</td><td>${v.staff}</td><td>${v.utenti + v.staff}</td></tr>`;
+  });
+  h += '</table>';
+  return h;
+}
+
+function caricaPartecipantiEsistenti(){
+  if (!currentGitaId) return;
+  db.collection('gite').doc(currentGitaId).get().then(doc => {
+    const arr = doc.exists ? (doc.data().partecipanti || []) : [];
+    document.getElementById('riepilogoIscritti').innerHTML = riepilogoHTML(arr);
+    document.getElementById('listaPartecipantiSalvati').innerHTML = listaPartecipantiHTML(arr);
+    document.getElementById('btnConfermaImport').classList.add('hidden');
+  });
+}
+
+/***** Importazione Iscritti *****/
+let tmpIscritti=[];
+function preElaboraIscritti(e){
+  const file=e.target.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    const wb=XLSX.read(new Uint8Array(ev.target.result),{type:'array'});
+    const data=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+    tmpIscritti=data.map(r=>({
+      nome:r['Nome e Cognome']||'',
+      categoria:r['Categoria']||'',
+      corso:r['Corso']||''
+    })).filter(p=>p.nome && p.categoria!=='Accompagnatore_di_sub');
+    mostraRiepilogoIscritti();
+  };
+  reader.readAsArrayBuffer(file);
+}
+function mostraRiepilogoIscritti(){
+  const wrap=document.getElementById('riepilogoIscritti');
+  if(!tmpIscritti.length){wrap.textContent='';btnConfermaImport.classList.add('hidden');return;}
+  const riepilogo={};
+  tmpIscritti.forEach(p=>{
+    const corso=p.corso||'Nessun corso';
+    const cat=p.categoria.toLowerCase();
+    if(!riepilogo[corso]) riepilogo[corso]={utenti:0,staff:0};
+    ['istruttore','aiutoistruttore','divemaster'].includes(cat)?riepilogo[corso].staff++:riepilogo[corso].utenti++;
+  });
+  let html=`<p><strong>Totale Subacquei: ${tmpIscritti.length}</strong></p>`;
+  html+='<table><tr><th>Corso</th><th>Utenti</th><th>Staff</th><th>Totale</th></tr>';
+  Object.entries(riepilogo).forEach(([c,v])=>{
+    html+=`<tr><td>${c}</td><td>${v.utenti}</td><td>${v.staff}</td><td>${v.utenti+v.staff}</td></tr>`;
+  });
+  html+='</table>';
+  wrap.innerHTML=html;
+  btnConfermaImport.classList.remove('hidden');
+}
+function listaPartecipantiHTML(arr){
+  if(!arr.length) return '<em>Nessun partecipante</em>';
+  return '<table><tr><th>Nome</th><th>Categoria</th><th>Corso</th></tr>'+
+         arr.map(p=>`<tr><td>${p.nome}</td><td>${p.categoria}</td><td>${p.corso||''}</td></tr>`).join('')+
+         '</table>';
+}
+function caricaPartecipantiEsistenti(){
+  if(!currentGitaId) return;
+  db.collection('gite').doc(currentGitaId).get().then(doc=>{
+    const arr = doc.exists ? (doc.data().partecipanti || []) : [];
+    document.getElementById('riepilogoIscritti').innerHTML = riepilogoHTML(arr); // se hai già la tua funzione, usa quella
+    document.getElementById('listaPartecipantiSalvati').innerHTML = listaPartecipantiHTML(arr);
+    document.getElementById('btnConfermaImport').classList.add('hidden');
+  });
+}
+
+function esportaRiepilogo() {
+  if (!currentGitaId) {
+    alert("Nessuna gita selezionata.");
+    return;
+  }
+
+  db.collection("gite").doc(currentGitaId).get().then(async (doc) => {
+    const gita = doc.data();
+    const organizzazione = gita.organizzazione || {};
+    const partecipanti = gita.partecipanti || [];
+
+    const nomeGita = gita.nome || "Gita senza nome";
+    const range = gita.dateRange || [];
+    const dataInizio = new Date(range[0]).toLocaleDateString('it-IT');
+    const dataFine = new Date(range[1]).toLocaleDateString('it-IT');
+    const periodoGita = dataInizio === dataFine ? dataInizio : `${dataInizio} - ${dataFine}`;
+
+    const wsData = [];
+    const merges = [];
+    let currentRow = 0;
+
+    // Prima riga: Nome gita e periodo
+    wsData.push([`Gita: ${nomeGita} — Periodo: ${periodoGita}`]);
+    merges.push({ s: { r: currentRow, c: 0 }, e: { r: currentRow, c: 6 } });
+    currentRow++;
+
+    const giorni = Object.keys(organizzazione).sort();
+
+    for (const giorno of giorni) {
+      const dataObj = new Date(giorno);
+      const giornoLabel = dataObj.toLocaleDateString('it-IT', {
+        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+      });
+
+      wsData.push([giornoLabel]);
+      merges.push({ s: { r: currentRow, c: 0 }, e: { r: currentRow, c: 6 } });
+      currentRow++;
+
+      wsData.push(["Orario", "Corso", "Utenti", "Staff", "Totale", "Mezzo", "Capienza"]);
+      currentRow++;
+
+      const orari = Object.keys(organizzazione[giorno]).sort();  // 🔁 ordinati cronologicamente
+      const blocchi = {};
+
+      for (const orario of orari) {
+        const mezzi = organizzazione[giorno][orario];
+        for (const mezzo of mezzi) {
+          const chiave = `${mezzo.nome}|${orario}`;
+          const capienza = mezzo.capienza !== undefined ? mezzo.capienza : "∞";
+          if (!blocchi[chiave]) blocchi[chiave] = {
+            corsi: new Set(),
+            utenti: 0,
+            staff: 0,
+            totale: 0,
+            mezzo: mezzo.nome,
+            capienza: capienza,
+            orario: orario
+          };
+
+          const blocco = blocchi[chiave];
+          (mezzo.persone || []).forEach(nome => {
+            const p = partecipanti.find(pp => pp.nome === nome);
+            if (!p) return;
+            const corso = p.corso?.trim() || "Liberi";
+            const cat = (p.categoria || "").toLowerCase();
+
+            blocco.corsi.add(corso);
+            if (["istruttore", "aiutoistruttore", "divemaster"].includes(cat)) {
+              blocco.staff++;
+            } else {
+              blocco.utenti++;
+            }
+            blocco.totale++;
+          });
+        }
+      }
+
+      Object.values(blocchi)
+        .sort((a, b) => a.orario.localeCompare(b.orario)) // Ordina anche i blocchi per orario
+        .forEach(b => {
+          wsData.push([
+            b.orario,
+            Array.from(b.corsi).join(" e "),
+            b.utenti,
+            b.staff,
+            b.totale,
+            b.mezzo,
+            b.capienza
+          ]);
+          currentRow++;
+        });
+
+      wsData.push([]);
+      currentRow++;
+    }
+
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    ws["!merges"] = merges;
+
+    const colWidths = [];
+    const numCols = Math.max(...wsData.map(row => row.length));
+    for (let i = 0; i < numCols; i++) {
+      let maxLen = 10;
+      wsData.forEach(row => {
+        const val = row[i];
+        const len = val ? String(val).length : 0;
+        if (len > maxLen) maxLen = len;
+      });
+      colWidths.push({ wch: maxLen + 2 });
+    }
+    ws["!cols"] = colWidths;
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Riepilogo Immersioni");
+    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([wbout], { type: 'application/octet-stream' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `riepilogo_immersioni_${nomeGita.replace(/\s+/g, '_')}.xlsx`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  });
+}
+
+
+function confermaImportIscritti(){
+  if(!currentGitaId || !tmpIscritti.length) return;
+  if(!confirm('Sostituire i partecipanti esistenti con il nuovo file?')) return;
+  db.collection('gite').doc(currentGitaId).update({partecipanti:tmpIscritti})
+    .then (()=>{
+      showMsg('Iscritti importati');
+      tmpIscritti=[]; fileIscritti.value=''; riepilogoIscritti.innerHTML=''; btnConfermaImport.classList.add('hidden');
+    })
+    .catch(()=>showMsg('Errore importazione iscritti'));
+}
+
+auth.onAuthStateChanged(user => {
+        if (user) {
+          document.getElementById('authSection').classList.add('hidden');
+          document.getElementById('mainApp').classList.remove('hidden');
+          flatpickr('#dateGita', { mode: 'range', dateFormat: 'Y-m-d' });
+          loadGite();
+        } else {
+          document.getElementById('authSection').classList.remove('hidden');
+          document.getElementById('mainApp').classList.add('hidden');
+        }
+      });
+    }
+      
+
+  </script>
+</body>
+</html>
+
